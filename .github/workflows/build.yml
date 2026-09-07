@@ -1,0 +1,30 @@
+name: Build Windows exe
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PyInstaller
+        run: pip install pyinstaller
+
+      - name: Build exe
+        run: pyinstaller MouseClick.spec --noconfirm
+
+      - name: Upload exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: MouseClick-windows
+          path: |
+            dist/MouseClick.exe
+            clicks.json

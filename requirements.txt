@@ -1,0 +1,3 @@
+# Geen runtime-dependencies — gebruikt alleen Python-stdlib + tkinter (Windows).
+# Optioneel voor .exe-build:
+# pyinstaller>=6.0
