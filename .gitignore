@@ -1,5 +1,7 @@
 build/
-dist/
+dist/*
+!dist/MouseClick.exe
+!dist/clicks.json
 *.spec.bak
 __pycache__/
 *.pyc
