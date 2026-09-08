@@ -15,16 +15,25 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Read version
+        id: version
+        shell: bash
+        run: echo "label=$(python -c 'from version import version_label; print(version_label())')" >> "$GITHUB_OUTPUT"
+
       - name: Install dependencies
         run: pip install pyinstaller pystray Pillow
 
       - name: Build exe
         run: pyinstaller MouseClick.spec --noconfirm
 
+      - name: Write dist version file
+        run: python write_dist_version.py
+
       - name: Upload exe
         uses: actions/upload-artifact@v4
         with:
-          name: YellowspotMouseClick-windows
+          name: YellowspotMouseClick-${{ steps.version.outputs.label }}
           path: |
-            dist/YellowspotMouseClick.exe
+            dist/YellowspotMouseClick-v*.exe
+            dist/version.txt
             clicks.json

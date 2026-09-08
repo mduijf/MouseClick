@@ -18,6 +18,7 @@ if sys.platform != "win32":
 
 from mouse_click import click, get_cursor_pos
 from tray import APP_NAME, TrayIcon
+from version import version_label
 
 
 def config_path() -> Path:
@@ -100,7 +101,7 @@ class App(tk.Tk):
 
     def __init__(self):
         super().__init__()
-        self.title(APP_NAME)
+        self.title(f"{APP_NAME} {version_label()}")
         self.geometry("440x680")
         self.minsize(400, 580)
         self.configure(bg=self.BG)
@@ -156,7 +157,7 @@ class App(tk.Tk):
         content.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
         header = tk.Label(
-            content, text=APP_NAME, font=("Segoe UI", 16, "bold"),
+            content, text=f"{APP_NAME} {version_label()}", font=("Segoe UI", 16, "bold"),
             bg=self.BG, fg="#111",
         )
         header.pack(pady=(16, 2))

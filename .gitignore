@@ -1,7 +1,7 @@
 build/
 dist/*
-!dist/YellowspotMouseClick.exe
-!dist/MouseClick.exe
+!dist/YellowspotMouseClick-v*.exe
+!dist/version.txt
 !dist/clicks.json
 *.spec.bak
 __pycache__/

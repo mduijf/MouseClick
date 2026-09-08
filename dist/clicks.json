@@ -1,12 +1,5 @@
 {
-  "clicks": [
-    {
-      "mode": "delay",
-      "delay": 3,
-      "x": 500,
-      "y": 400
-    }
-  ],
-  "repeat": false,
+  "clicks": [],
+  "repeat": true,
   "pause": "5"
 }

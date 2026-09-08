@@ -1,5 +1,13 @@
 # PyInstaller spec — bouw met: pyinstaller MouseClick.spec
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(SPECPATH)))
+from version import __version__
+
+APP_EXE_NAME = f"YellowspotMouseClick-v{__version__}"
+
 block_cipher = None
 
 a = Analysis(
@@ -7,7 +15,7 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[],
-    hiddenimports=['pystray', 'pystray._win32', 'PIL.Image', 'PIL.ImageDraw', 'PIL.ImageFont'],
+    hiddenimports=['pystray', 'pystray._win32', 'PIL.Image', 'PIL.ImageDraw', 'PIL.ImageFont', 'version'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -26,7 +34,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='YellowspotMouseClick',
+    name=APP_EXE_NAME,
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

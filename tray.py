@@ -5,7 +5,10 @@ import threading
 import pystray
 from PIL import Image, ImageDraw, ImageFont
 
+from version import version_label
+
 APP_NAME = "Yellowspot MouseClick"
+TRAY_TITLE = f"{APP_NAME} {version_label()}"
 
 
 def create_icon() -> Image.Image:
@@ -26,7 +29,7 @@ class TrayIcon:
         self._icon = pystray.Icon(
             APP_NAME,
             create_icon(),
-            APP_NAME,
+            TRAY_TITLE,
             menu=pystray.Menu(
                 pystray.MenuItem("Openen", self._open),
                 pystray.MenuItem("Afsluiten", self._quit),

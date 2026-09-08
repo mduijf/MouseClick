@@ -12,21 +12,28 @@ if errorlevel 1 (
     exit /b 1
 )
 
+for /f "delims=" %%v in ('python -c "from version import version_label; print(version_label())"') do set VERSION=%%v
+echo Versie: %VERSION%
+echo.
+
 echo Installeren dependencies...
 python -m pip install --upgrade pip pyinstaller pystray Pillow -q
 
-echo Bouwen YellowspotMouseClick.exe...
+echo Bouwen YellowspotMouseClick-%VERSION%.exe...
 python -m PyInstaller MouseClick.spec --noconfirm --clean
+python write_dist_version.py
+copy /Y clicks.json dist\clicks.json >nul 2>&1
 
-if exist "dist\YellowspotMouseClick.exe" (
+for %%f in (dist\YellowspotMouseClick-v*.exe) do (
     echo.
-    echo Klaar: dist\YellowspotMouseClick.exe
-    copy /Y clicks.json dist\clicks.json >nul 2>&1
-    echo Voorbeeldconfig gekopieerd naar dist\clicks.json
-) else (
-    echo.
-    echo FOUT: Build mislukt.
+    echo Klaar: %%f
+    echo Versie: dist\version.txt
+    goto :done
 )
 
+echo.
+echo FOUT: Build mislukt.
+
+:done
 echo.
 pause
