@@ -2,6 +2,7 @@
 
 import ctypes
 import sys
+import time
 
 if sys.platform != "win32":
     raise OSError("Deze applicatie werkt alleen op Windows.")
@@ -23,11 +24,19 @@ def get_cursor_pos() -> tuple[int, int]:
     return point.x, point.y
 
 
-def click(x: int, y: int, button: str = "left") -> None:
-    user32.SetCursorPos(int(x), int(y))
+def _press(button: str, down: bool) -> None:
     if button == "right":
-        user32.mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, 0)
-        user32.mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, 0)
+        flag = MOUSEEVENTF_RIGHTDOWN if down else MOUSEEVENTF_RIGHTUP
     else:
-        user32.mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
-        user32.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+        flag = MOUSEEVENTF_LEFTDOWN if down else MOUSEEVENTF_LEFTUP
+    user32.mouse_event(flag, 0, 0, 0, 0)
+
+
+def click(x: int, y: int, button: str = "left", double: bool = False) -> None:
+    user32.SetCursorPos(int(x), int(y))
+    _press(button, True)
+    _press(button, False)
+    if double:
+        time.sleep(0.05)
+        _press(button, True)
+        _press(button, False)

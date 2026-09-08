@@ -58,8 +58,9 @@ class Scheduler:
                     self._wait(c)
                     if self._stop.is_set():
                         break
-                    self.set_status(f"Klik {i + 1}/{len(clicks)} op ({c['x']}, {c['y']})")
-                    click(c["x"], c["y"])
+                    kind = "dubbelklik" if c.get("double") else "klik"
+                    self.set_status(f"{kind.capitalize()} {i + 1}/{len(clicks)} op ({c['x']}, {c['y']})")
+                    click(c["x"], c["y"], double=c.get("double", False))
                 if not repeat or self._stop.is_set():
                     break
                 self.set_status(f"Pauze {pause}s...")
@@ -209,6 +210,11 @@ class App(tk.Tk):
         tk.Label(row2, text="Y", bg="white").pack(side=tk.LEFT, padx=(0, 4))
         ttk.Entry(row2, textvariable=self.y, width=10).pack(side=tk.LEFT)
 
+        self.double = tk.BooleanVar(value=False)
+        row3 = tk.Frame(inner, bg="white")
+        row3.pack(fill=tk.X, pady=4)
+        ttk.Checkbutton(row3, text="Dubbelklik", variable=self.double).pack(anchor=tk.W)
+
         btns = tk.Frame(inner, bg="white")
         btns.pack(fill=tk.X, pady=(10, 0))
         ttk.Button(btns, text="Huidige positie", command=self._pick_pos).pack(side=tk.LEFT, padx=(0, 6))
@@ -280,6 +286,13 @@ class App(tk.Tk):
             if ":" in self.val.get():
                 self.val.set("3")
 
+    def _click_label(self, entry: dict) -> str:
+        action = "2x" if entry.get("double") else "klik"
+        pos = f"({entry['x']}, {entry['y']})"
+        if entry.get("mode") == "clock":
+            return f"om {entry['time']}  →  {action} {pos}"
+        return f"{entry.get('delay', 0):g}s  →  {action} {pos}"
+
     def _pick_pos(self):
         x, y = get_cursor_pos()
         self.x.set(str(x))
@@ -289,10 +302,15 @@ class App(tk.Tk):
     def _add(self):
         try:
             x, y = int(self.x.get()), int(self.y.get())
+            is_double = self.double.get()
             if self.mode.get() == "delay":
                 float(self.val.get().replace(",", "."))
-                entry = {"mode": "delay", "delay": float(self.val.get().replace(",", ".")), "x": x, "y": y}
-                label = f"{entry['delay']:g}s  →  ({x}, {y})"
+                entry = {
+                    "mode": "delay",
+                    "delay": float(self.val.get().replace(",", ".")),
+                    "x": x, "y": y,
+                    "double": is_double,
+                }
             else:
                 time_str = self.val.get().strip()
                 parts = time_str.split(":")
@@ -301,8 +319,12 @@ class App(tk.Tk):
                 h, m, s = map(int, parts)
                 if not (0 <= h <= 23 and 0 <= m <= 59 and 0 <= s <= 59):
                     raise ValueError
-                entry = {"mode": "clock", "time": f"{h:02d}:{m:02d}:{s:02d}", "x": x, "y": y}
-                label = f"om {entry['time']}  →  ({x}, {y})"
+                entry = {
+                    "mode": "clock",
+                    "time": f"{h:02d}:{m:02d}:{s:02d}",
+                    "x": x, "y": y,
+                    "double": is_double,
+                }
         except ValueError:
             if self.mode.get() == "clock":
                 messagebox.showwarning(
@@ -313,7 +335,7 @@ class App(tk.Tk):
                 messagebox.showwarning("Invoer", "Controleer seconden, X en Y.")
             return
         self.clicks.append(entry)
-        self.listbox.insert(tk.END, label)
+        self.listbox.insert(tk.END, self._click_label(entry))
         self._save()
 
     def _remove(self):
@@ -367,10 +389,7 @@ class App(tk.Tk):
         self.pause.set(str(data.get("pause", "5")))
         self.listbox.delete(0, tk.END)
         for c in self.clicks:
-            if c.get("mode") == "clock":
-                self.listbox.insert(tk.END, f"om {c['time']}  →  ({c['x']}, {c['y']})")
-            else:
-                self.listbox.insert(tk.END, f"{c.get('delay', 0):g}s  →  ({c['x']}, {c['y']})")
+            self.listbox.insert(tk.END, self._click_label(c))
 
 
 if __name__ == "__main__":
