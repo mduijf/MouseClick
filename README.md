@@ -1,6 +1,6 @@
 # Yellowspot MouseClick
 
-**Versie:** V1.1  
+**Versie:** V1.2  
 **Platform:** Windows  
 
 Yellowspot MouseClick is een eenvoudige Windows-applicatie waarmee je muisklikken kunt plannen op instelbare **tijdstippen** en **schermposities**. Handig voor repetitieve taken, geplande acties of automatisering zonder complexe scripts.
@@ -13,7 +13,7 @@ De nieuwste versie staat in de map [`dist/`](dist/):
 
 | Bestand | Beschrijving |
 |---------|--------------|
-| `YellowspotMouseClick-v1.1.exe` | Uitvoerbaar programma |
+| `YellowspotMouseClick-v1.2.exe` | Uitvoerbaar programma |
 | `version.txt` | Huidige versie (bijv. `V1.1`) |
 | `clicks.json` | Optioneel voorbeeldbestand met instellingen |
 
@@ -23,7 +23,7 @@ Je hebt alleen de `.exe` nodig om te starten. `clicks.json` is niet verplicht �
 
 ## Snel starten
 
-1. Start **`YellowspotMouseClick-v1.1.exe`**
+1. Start **`YellowspotMouseClick-v1.2.exe`**
 2. Kies actie: **Muisklik** of **Toetsaanslag**
 3. Stel timing en positie/toets in
 4. Klik op **+ Toevoegen**
@@ -90,6 +90,25 @@ In de lijst zie je het verschil:
 - Vink **Herhalen** aan om de hele reeks klikken te herhalen
 - Stel **Pauze (sec)** in voor de wachttijd tussen rondes
 
+### Starten met Windows
+
+Handig als je bijvoorbeeld **1 minuut na het opstarten van de pc** wilt klikken:
+
+1. Voeg een actie toe met timing **Vertraging** en **60** seconden
+2. Vink **Start met Windows** aan
+3. Laat **Acties automatisch uitvoeren bij opstarten** aan staan
+4. Laat **Start in systeemvak** aan staan als je geen venster wilt zien bij het inloggen
+
+Daarna start de app mee bij het inloggen, wacht 60 seconden en voert de geplande acties uit.
+
+| Optie | Betekenis |
+|-------|-----------|
+| **Start met Windows** | App start automatisch na het inloggen |
+| **Acties automatisch uitvoeren bij opstarten** | Geplande acties starten automatisch als Windows de app start |
+| **Start in systeemvak** | Geen venster bij opstarten; openen via het gele Y-icoon |
+
+**Let op:** Windows start programma's na het **inloggen**, niet tijdens het BIOS-scherm. De timer begint zodra MouseClick is gestart.
+
 ---
 
 ## Op de achtergrond draaien
@@ -142,7 +161,10 @@ Het configuratiebestand staat automatisch naast de `.exe`:
     }
   ],
   "repeat": false,
-  "pause": "5"
+  "pause": "5",
+  "start_with_windows": false,
+  "autorun": false,
+  "start_in_tray": false
 }
 ```
 
@@ -157,6 +179,9 @@ Het configuratiebestand staat automatisch naast de `.exe`:
 | `double` | `true` = dubbelklik, `false` = enkele klik |
 | `repeat` | Hele reeks herhalen |
 | `pause` | Pauze tussen rondes (seconden) |
+| `start_with_windows` | App starten bij Windows-inloggen |
+| `autorun` | Acties automatisch starten bij openen van de app |
+| `start_in_tray` | Bij opstarten direct naar het systeemvak |
 
 ---
 
@@ -207,6 +232,7 @@ Daarna committen en pushen — GitHub Actions bouwt automatisch een nieuwe `.exe
 ```
 MouseClick/
 ├── main.py              # App + gebruikersinterface
+├── autostart.py         # Starten met Windows (register)
 ├── mouse_click.py       # Windows muisklik-API
 ├── key_press.py         # Windows toetsaanslag-API
 ├── tray.py              # Systeemvak-icoon
@@ -216,7 +242,7 @@ MouseClick/
 ├── MouseClick.spec      # PyInstaller-configuratie
 ├── clicks.json          # Voorbeeldconfiguratie
 └── dist/                # Gebouwde releases
-    ├── YellowspotMouseClick-v1.1.exe
+    ├── YellowspotMouseClick-v1.2.exe
     └── version.txt
 ```
 
@@ -242,6 +268,9 @@ Ja, het venster is vergrootbaar. De knoppen onderaan blijven altijd zichtbaar.
 
 **Werkt dit op Mac?**  
 Nee, alleen Windows. De app gebruikt de Windows `user32`-API voor muissimulatie.
+
+**Kan ik 1 minuut na het opstarten van de pc klikken?**  
+Ja. Zet **Start met Windows** aan, laat automatisch uitvoeren aan staan, en geef de eerste actie een vertraging van 60 seconden.
 
 ---
 

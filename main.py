@@ -16,6 +16,7 @@ if sys.platform != "win32":
     messagebox.showerror("Yellowspot MouseClick", "Deze app werkt alleen op Windows.")
     sys.exit(1)
 
+from autostart import set_enabled as set_windows_autostart
 from key_press import keysym_to_name, parse_key, press_key
 from mouse_click import click, get_cursor_pos
 from tray import APP_NAME, TrayIcon
@@ -107,14 +108,16 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title(f"{APP_NAME} {version_label()}")
-        self.geometry("440x680")
-        self.minsize(400, 580)
+        self.geometry("440x760")
+        self.minsize(400, 640)
         self.configure(bg=self.BG)
 
         self.clicks: list[dict] = []
         self._in_tray = False
         self._capturing_key = False
         self._tray: TrayIcon | None = None
+        self._from_windows = "--startup" in sys.argv or "--minimized" in sys.argv
+        self._launch_minimized = "--minimized" in sys.argv
         self.scheduler = Scheduler(self._status, self._done)
         self._build()
         self._load()
@@ -123,6 +126,7 @@ class App(tk.Tk):
         self.bind("<Unmap>", self._on_unmap)
         self.bind("<Configure>", self._on_resize)
         self._tray = TrayIcon(self)
+        self.after(200, self._apply_launch_behavior)
 
     def _build(self):
         # Onderkant eerst — blijft altijd zichtbaar bij verkleinen
@@ -154,10 +158,36 @@ class App(tk.Tk):
         opts = tk.Frame(footer, bg=self.BG)
         opts.pack(fill=tk.X)
         self.repeat = tk.BooleanVar()
-        ttk.Checkbutton(opts, text="Herhalen", variable=self.repeat).pack(side=tk.LEFT)
+        ttk.Checkbutton(
+            opts, text="Herhalen", variable=self.repeat, command=self._save,
+        ).pack(side=tk.LEFT)
         tk.Label(opts, text="Pauze (sec)", bg=self.BG).pack(side=tk.LEFT, padx=(12, 4))
         self.pause = tk.StringVar(value="5")
         ttk.Entry(opts, textvariable=self.pause, width=5).pack(side=tk.LEFT)
+
+        boot = tk.Frame(footer, bg=self.BG)
+        boot.pack(fill=tk.X, pady=(10, 0))
+        tk.Label(boot, text="Opstarten", bg=self.BG, font=("Segoe UI", 9, "bold")).pack(anchor=tk.W)
+        self.start_with_windows = tk.BooleanVar()
+        self.autorun = tk.BooleanVar()
+        self.start_in_tray = tk.BooleanVar()
+        ttk.Checkbutton(
+            boot, text="Start met Windows",
+            variable=self.start_with_windows, command=self._on_start_with_windows,
+        ).pack(anchor=tk.W)
+        ttk.Checkbutton(
+            boot, text="Acties automatisch uitvoeren bij opstarten",
+            variable=self.autorun, command=self._save,
+        ).pack(anchor=tk.W)
+        ttk.Checkbutton(
+            boot, text="Start in systeemvak",
+            variable=self.start_in_tray, command=self._on_start_in_tray,
+        ).pack(anchor=tk.W)
+        tk.Label(
+            boot,
+            text="Voor een klik 1 minuut na opstarten: eerste actie op 60 seconden vertraging.",
+            bg=self.BG, fg="#666", font=("Segoe UI", 8), wraplength=400, justify=tk.LEFT, anchor=tk.W,
+        ).pack(fill=tk.X, pady=(2, 0))
 
         content = tk.Frame(self, bg=self.BG)
         content.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
@@ -308,6 +338,44 @@ class App(tk.Tk):
             self._tray.stop()
         self.destroy()
 
+    def _on_start_with_windows(self):
+        if self.start_with_windows.get():
+            self.autorun.set(True)
+            self.start_in_tray.set(True)
+        self._refresh_windows_autostart()
+        self._save()
+
+    def _on_start_in_tray(self):
+        self._refresh_windows_autostart()
+        self._save()
+
+    def _refresh_windows_autostart(self, show_error: bool = True):
+        try:
+            set_windows_autostart(
+                self.start_with_windows.get(),
+                minimized=self.start_in_tray.get(),
+            )
+        except OSError as e:
+            self.start_with_windows.set(False)
+            if show_error:
+                messagebox.showerror(
+                    APP_NAME,
+                    f"Kon Windows-opstart niet instellen:\n{e}",
+                )
+
+    def _apply_launch_behavior(self):
+        if self._launch_minimized:
+            self._in_tray = True
+            self.withdraw()
+            self._status("Draait op de achtergrond — open via het icoon naast de klok")
+        if (
+            self._from_windows
+            and self.autorun.get()
+            and self.clicks
+            and not self.scheduler.running
+        ):
+            self._start()
+
     def _update_action_fields(self) -> None:
         is_key = self.action_type.get() == "key"
         if is_key:
@@ -456,6 +524,7 @@ class App(tk.Tk):
             return
         self.btn_start.configure(state=tk.DISABLED)
         self.btn_stop.configure(state=tk.NORMAL)
+        self._save()
         self.scheduler.start(self.clicks, self.repeat.get(), pause)
         self._status("Gestart — je kunt minimaliseren naar het systeemvak")
 
@@ -472,7 +541,14 @@ class App(tk.Tk):
         self.after(0, lambda: self.status.set(text))
 
     def _save(self):
-        data = {"clicks": self.clicks, "repeat": self.repeat.get(), "pause": self.pause.get()}
+        data = {
+            "clicks": self.clicks,
+            "repeat": self.repeat.get(),
+            "pause": self.pause.get(),
+            "start_with_windows": self.start_with_windows.get(),
+            "autorun": self.autorun.get(),
+            "start_in_tray": self.start_in_tray.get(),
+        }
         config_path().write_text(json.dumps(data, indent=2), encoding="utf-8")
 
     def _load(self):
@@ -486,9 +562,14 @@ class App(tk.Tk):
         self.clicks = data.get("clicks", [])
         self.repeat.set(data.get("repeat", False))
         self.pause.set(str(data.get("pause", "5")))
+        self.start_with_windows.set(data.get("start_with_windows", False))
+        self.autorun.set(data.get("autorun", False))
+        self.start_in_tray.set(data.get("start_in_tray", False))
         self.listbox.delete(0, tk.END)
         for c in self.clicks:
             self.listbox.insert(tk.END, self._action_label(c))
+        if self.start_with_windows.get():
+            self._refresh_windows_autostart(show_error=False)
 
 
 if __name__ == "__main__":

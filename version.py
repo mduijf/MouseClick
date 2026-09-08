@@ -1,6 +1,6 @@
 """Applicatieversie — pas dit aan bij elke wijziging."""
 
-__version__ = "1.1"
+__version__ = "1.2"
 
 
 def version_label() -> str:
