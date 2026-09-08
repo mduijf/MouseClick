@@ -118,8 +118,8 @@ class App(tk.Tk):
 
     def _build(self):
         # Onderkant eerst — blijft altijd zichtbaar bij verkleinen
-        footer = tk.Frame(self, bg=self.BG, padx=16, pady=(8, 12))
-        footer.pack(side=tk.BOTTOM, fill=tk.X)
+        footer = tk.Frame(self, bg=self.BG)
+        footer.pack(side=tk.BOTTOM, fill=tk.X, padx=16, pady=(8, 12))
 
         self.status = tk.StringVar(value="Gereed — voeg klikken toe en druk op Start")
         self.status_label = tk.Label(
