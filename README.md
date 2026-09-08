@@ -1,6 +1,6 @@
 # Yellowspot MouseClick
 
-**Versie:** V1.0  
+**Versie:** V1.1  
 **Platform:** Windows  
 
 Yellowspot MouseClick is een eenvoudige Windows-applicatie waarmee je muisklikken kunt plannen op instelbare **tijdstippen** en **schermposities**. Handig voor repetitieve taken, geplande acties of automatisering zonder complexe scripts.
@@ -13,8 +13,8 @@ De nieuwste versie staat in de map [`dist/`](dist/):
 
 | Bestand | Beschrijving |
 |---------|--------------|
-| `YellowspotMouseClick-v1.0.exe` | Uitvoerbaar programma |
-| `version.txt` | Huidige versie (bijv. `V1.0`) |
+| `YellowspotMouseClick-v1.1.exe` | Uitvoerbaar programma |
+| `version.txt` | Huidige versie (bijv. `V1.1`) |
 | `clicks.json` | Optioneel voorbeeldbestand met instellingen |
 
 Je hebt alleen de `.exe` nodig om te starten. `clicks.json` is niet verplicht — de app maakt dit bestand zelf aan zodra je klikken opslaat.
@@ -23,15 +23,25 @@ Je hebt alleen de `.exe` nodig om te starten. `clicks.json` is niet verplicht �
 
 ## Snel starten
 
-1. Start **`YellowspotMouseClick-v1.0.exe`**
-2. Stel timing, positie en type klik in
-3. Klik op **+ Toevoegen**
-4. Druk op **▶ START**
-5. Minimaliseer het venster — de app blijft op de achtergrond draaien
+1. Start **`YellowspotMouseClick-v1.1.exe`**
+2. Kies actie: **Muisklik** of **Toetsaanslag**
+3. Stel timing en positie/toets in
+4. Klik op **+ Toevoegen**
+5. Druk op **▶ START**
+6. Minimaliseer het venster — de app blijft op de achtergrond draaien
 
 ---
 
 ## Gebruikershandleiding
+
+### Actietype
+
+Kies bovenaan het formulier wat je wilt plannen:
+
+| Actie | Velden | Voorbeeld |
+|-------|--------|-----------|
+| **Muisklik** | X, Y, optioneel dubbelklik | Klik op (500, 400) |
+| **Toetsaanslag** | Toetsnaam | Druk op F6 |
 
 ### Timing
 
@@ -43,6 +53,17 @@ Er zijn twee modi:
 | **Kloktijd** | Tijdstip (`uu:mm:ss`) | `14:30:00` | Wacht tot 14:30 uur, voer dan de klik uit |
 
 **Kloktijd:** Is het tijdstip vandaag al voorbij, dan wacht de app tot morgen op datzelfde moment.
+
+### Toetsaanslag
+
+- Kies **Toetsaanslag** als actietype
+- Vul een toetsnaam in, bijv. `F6`, `Enter`, `Tab`, `A`
+- Of klik op **Toets kiezen** en druk de gewenste toets
+- Ondersteunde toetsen: F1–F12, letters, cijfers, Enter, Tab, Escape, Space, pijltjes, Home, End, PageUp, PageDown, Backspace, Delete, Insert
+
+In de lijst zie je bijvoorbeeld:
+- `2s → toets F6`
+- `om 14:30:00 → toets Enter`
 
 ### Positie
 
@@ -58,9 +79,9 @@ In de lijst zie je het verschil:
 - `3s → klik (500, 400)` — enkele klik
 - `3s → 2x (500, 400)` — dubbelklik
 
-### Geplande klikken
+### Geplande acties
 
-- Meerdere klikken worden **van boven naar beneden** uitgevoerd
+- Meerdere acties (klikken en toetsen) worden **van boven naar beneden** uitgevoerd
 - Selecteer een regel en klik **Verwijder geselecteerd** om te wissen
 - Instellingen worden automatisch opgeslagen in `clicks.json` naast de `.exe`
 
@@ -112,6 +133,12 @@ Het configuratiebestand staat automatisch naast de `.exe`:
       "x": 800,
       "y": 300,
       "double": true
+    },
+    {
+      "type": "key",
+      "mode": "delay",
+      "delay": 2,
+      "key": "F6"
     }
   ],
   "repeat": false,
@@ -121,6 +148,8 @@ Het configuratiebestand staat automatisch naast de `.exe`:
 
 | Veld | Betekenis |
 |------|-----------|
+| `type` | `"key"` voor toetsaanslag; weglaten = muisklik |
+| `key` | Toetsnaam (alleen bij `type: "key"`) |
 | `mode` | `"delay"` of `"clock"` |
 | `delay` | Seconden wachten (alleen bij `delay`) |
 | `time` | Tijdstip `HH:MM:SS` (alleen bij `clock`) |
@@ -179,6 +208,7 @@ Daarna committen en pushen — GitHub Actions bouwt automatisch een nieuwe `.exe
 MouseClick/
 ├── main.py              # App + gebruikersinterface
 ├── mouse_click.py       # Windows muisklik-API
+├── key_press.py         # Windows toetsaanslag-API
 ├── tray.py              # Systeemvak-icoon
 ├── version.py           # Versienummer (bron)
 ├── bump_version.py      # Versie verhogen
@@ -186,7 +216,7 @@ MouseClick/
 ├── MouseClick.spec      # PyInstaller-configuratie
 ├── clicks.json          # Voorbeeldconfiguratie
 └── dist/                # Gebouwde releases
-    ├── YellowspotMouseClick-v1.0.exe
+    ├── YellowspotMouseClick-v1.1.exe
     └── version.txt
 ```
 

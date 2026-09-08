@@ -1,5 +1,5 @@
 """
-Yellowspot MouseClick — simuleer muisklikken op instelbare tijden en posities (Windows).
+Yellowspot MouseClick — simuleer muisklikken en toetsaanslagen op instelbare tijden (Windows).
 """
 
 import json
@@ -16,6 +16,7 @@ if sys.platform != "win32":
     messagebox.showerror("Yellowspot MouseClick", "Deze app werkt alleen op Windows.")
     sys.exit(1)
 
+from key_press import keysym_to_name, parse_key, press_key
 from mouse_click import click, get_cursor_pos
 from tray import APP_NAME, TrayIcon
 from version import version_label
@@ -59,9 +60,13 @@ class Scheduler:
                     self._wait(c)
                     if self._stop.is_set():
                         break
-                    kind = "dubbelklik" if c.get("double") else "klik"
-                    self.set_status(f"{kind.capitalize()} {i + 1}/{len(clicks)} op ({c['x']}, {c['y']})")
-                    click(c["x"], c["y"], double=c.get("double", False))
+                    if c.get("type", "click") == "key":
+                        self.set_status(f"Toets {c['key']} {i + 1}/{len(clicks)}")
+                        press_key(c["key"])
+                    else:
+                        kind = "dubbelklik" if c.get("double") else "klik"
+                        self.set_status(f"{kind.capitalize()} {i + 1}/{len(clicks)} op ({c['x']}, {c['y']})")
+                        click(c["x"], c["y"], double=c.get("double", False))
                 if not repeat or self._stop.is_set():
                     break
                 self.set_status(f"Pauze {pause}s...")
@@ -108,6 +113,7 @@ class App(tk.Tk):
 
         self.clicks: list[dict] = []
         self._in_tray = False
+        self._capturing_key = False
         self._tray: TrayIcon | None = None
         self.scheduler = Scheduler(self._status, self._done)
         self._build()
@@ -123,7 +129,7 @@ class App(tk.Tk):
         footer = tk.Frame(self, bg=self.BG)
         footer.pack(side=tk.BOTTOM, fill=tk.X, padx=16, pady=(8, 12))
 
-        self.status = tk.StringVar(value="Gereed — voeg klikken toe en druk op Start")
+        self.status = tk.StringVar(value="Gereed — voeg acties toe en druk op Start")
         self.status_label = tk.Label(
             footer, textvariable=self.status, bg=self.BG, fg="#555",
             font=("Segoe UI", 9), wraplength=400, justify=tk.LEFT, anchor=tk.W,
@@ -162,7 +168,7 @@ class App(tk.Tk):
         )
         header.pack(pady=(16, 2))
         tk.Label(
-            content, text="Plan muisklikken op tijd en positie",
+            content, text="Plan muisklikken en toetsaanslagen op tijd",
             font=("Segoe UI", 10), bg=self.BG, fg="#555",
         ).pack(pady=(0, 4))
         tk.Label(
@@ -176,16 +182,29 @@ class App(tk.Tk):
         inner = tk.Frame(form, bg="white", padx=12, pady=12)
         inner.pack(fill=tk.X)
 
+        self.action_type = tk.StringVar(value="click")
+        action_row = tk.Frame(inner, bg="white")
+        action_row.pack(fill=tk.X, pady=(0, 8))
+        tk.Label(action_row, text="Actie", bg="white", font=("Segoe UI", 9, "bold")).pack(anchor=tk.W)
+        ttk.Radiobutton(
+            action_row, text="Muisklik",
+            variable=self.action_type, value="click", command=self._update_action_fields,
+        ).pack(anchor=tk.W)
+        ttk.Radiobutton(
+            action_row, text="Toetsaanslag",
+            variable=self.action_type, value="key", command=self._update_action_fields,
+        ).pack(anchor=tk.W)
+
         self.mode = tk.StringVar(value="delay")
         mode_row = tk.Frame(inner, bg="white")
         mode_row.pack(fill=tk.X, pady=(0, 8))
         tk.Label(mode_row, text="Timing", bg="white", font=("Segoe UI", 9, "bold")).pack(anchor=tk.W)
         ttk.Radiobutton(
-            mode_row, text="Vertraging — wacht X seconden na vorige klik",
+            mode_row, text="Vertraging — wacht X seconden na vorige actie",
             variable=self.mode, value="delay", command=self._update_value_field,
         ).pack(anchor=tk.W)
         ttk.Radiobutton(
-            mode_row, text="Kloktijd — klik op een vast tijdstip vandaag",
+            mode_row, text="Kloktijd — actie op een vast tijdstip vandaag",
             variable=self.mode, value="clock", command=self._update_value_field,
         ).pack(anchor=tk.W)
 
@@ -197,14 +216,17 @@ class App(tk.Tk):
         self.val_entry = ttk.Entry(row1, textvariable=self.val, width=28)
         self.val_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
         self.val_hint = tk.Label(
-            inner, text="Aantal seconden wachten vóór deze klik.",
+            inner, text="Aantal seconden wachten vóór deze actie.",
             bg="white", fg="#666", font=("Segoe UI", 8), anchor=tk.W,
         )
         self.val_hint.pack(fill=tk.X, pady=(0, 4))
 
+        self.click_fields = tk.Frame(inner, bg="white")
+        self.click_fields.pack(fill=tk.X)
+
         self.x = tk.StringVar(value="500")
         self.y = tk.StringVar(value="400")
-        row2 = tk.Frame(inner, bg="white")
+        row2 = tk.Frame(self.click_fields, bg="white")
         row2.pack(fill=tk.X, pady=4)
         tk.Label(row2, text="X", bg="white", width=8, anchor=tk.W).pack(side=tk.LEFT)
         ttk.Entry(row2, textvariable=self.x, width=10).pack(side=tk.LEFT, padx=(0, 8))
@@ -212,24 +234,38 @@ class App(tk.Tk):
         ttk.Entry(row2, textvariable=self.y, width=10).pack(side=tk.LEFT)
 
         self.double = tk.BooleanVar(value=False)
-        row3 = tk.Frame(inner, bg="white")
+        row3 = tk.Frame(self.click_fields, bg="white")
         row3.pack(fill=tk.X, pady=4)
         ttk.Checkbutton(row3, text="Dubbelklik", variable=self.double).pack(anchor=tk.W)
+        ttk.Button(self.click_fields, text="Huidige positie", command=self._pick_pos).pack(anchor=tk.W, pady=(4, 0))
 
-        btns = tk.Frame(inner, bg="white")
-        btns.pack(fill=tk.X, pady=(10, 0))
-        ttk.Button(btns, text="Huidige positie", command=self._pick_pos).pack(side=tk.LEFT, padx=(0, 6))
-        ttk.Button(btns, text="+ Toevoegen", command=self._add).pack(side=tk.LEFT)
+        self.key_fields = tk.Frame(inner, bg="white")
+        self.key = tk.StringVar(value="F6")
+        key_row = tk.Frame(self.key_fields, bg="white")
+        key_row.pack(fill=tk.X, pady=4)
+        tk.Label(key_row, text="Toets", bg="white", width=8, anchor=tk.W).pack(side=tk.LEFT)
+        ttk.Entry(key_row, textvariable=self.key, width=12).pack(side=tk.LEFT, padx=(0, 8))
+        ttk.Button(key_row, text="Toets kiezen", command=self._capture_key).pack(side=tk.LEFT)
+        tk.Label(
+            self.key_fields,
+            text="Bijv. F6, Enter, Tab, A. Of klik op Toets kiezen en druk een toets.",
+            bg="white", fg="#666", font=("Segoe UI", 8), anchor=tk.W,
+        ).pack(fill=tk.X, pady=(0, 4))
+
+        self.form_btns = tk.Frame(inner, bg="white")
+        self.form_btns.pack(fill=tk.X, pady=(10, 0))
+        ttk.Button(self.form_btns, text="+ Toevoegen", command=self._add).pack(side=tk.LEFT)
 
         list_frame = tk.Frame(content, bg=self.BG, padx=16, pady=8)
         list_frame.pack(fill=tk.BOTH, expand=True)
-        tk.Label(list_frame, text="Geplande klikken", bg=self.BG, font=("Segoe UI", 9, "bold")).pack(anchor=tk.W)
+        tk.Label(list_frame, text="Geplande acties", bg=self.BG, font=("Segoe UI", 9, "bold")).pack(anchor=tk.W)
         self.listbox = tk.Listbox(
             list_frame, height=6, font=("Consolas", 10),
             selectmode=tk.SINGLE, activestyle="none",
         )
         self.listbox.pack(fill=tk.BOTH, expand=True, pady=4)
         ttk.Button(list_frame, text="Verwijder geselecteerd", command=self._remove).pack(anchor=tk.W)
+        self._update_action_fields()
 
     def _on_resize(self, event):
         if event.widget is self:
@@ -259,7 +295,7 @@ class App(tk.Tk):
         if self.scheduler.running:
             ok = messagebox.askyesno(
                 APP_NAME,
-                "Er lopen nog geplande klikken.\n\nWeet je zeker dat je wilt afsluiten?",
+                "Er lopen nog geplande acties.\n\nWeet je zeker dat je wilt afsluiten?",
                 icon="warning",
             )
             if not ok:
@@ -271,6 +307,30 @@ class App(tk.Tk):
         if self._tray:
             self._tray.stop()
         self.destroy()
+
+    def _update_action_fields(self) -> None:
+        is_key = self.action_type.get() == "key"
+        if is_key:
+            self.click_fields.pack_forget()
+            self.key_fields.pack(fill=tk.X, before=self.form_btns)
+        else:
+            self.key_fields.pack_forget()
+            self.click_fields.pack(fill=tk.X, before=self.form_btns)
+
+    def _capture_key(self) -> None:
+        if self._capturing_key:
+            return
+        self._capturing_key = True
+        self._status("Druk een toets...")
+        self.bind("<KeyPress>", self._on_key_capture, add="+")
+
+    def _on_key_capture(self, event) -> None:
+        if not self._capturing_key:
+            return
+        self._capturing_key = False
+        self.unbind("<KeyPress>")
+        self.key.set(keysym_to_name(event.keysym))
+        self._status(f"Toets gekozen: {self.key.get()}")
 
     def _update_value_field(self) -> None:
         if self.mode.get() == "clock":
@@ -287,12 +347,15 @@ class App(tk.Tk):
             if ":" in self.val.get():
                 self.val.set("3")
 
-    def _click_label(self, entry: dict) -> str:
-        action = "2x" if entry.get("double") else "klik"
-        pos = f"({entry['x']}, {entry['y']})"
+    def _action_label(self, entry: dict) -> str:
+        if entry.get("type", "click") == "key":
+            action = f"toets {entry['key']}"
+        else:
+            action = "2x" if entry.get("double") else "klik"
+            action = f"{action} ({entry['x']}, {entry['y']})"
         if entry.get("mode") == "clock":
-            return f"om {entry['time']}  →  {action} {pos}"
-        return f"{entry.get('delay', 0):g}s  →  {action} {pos}"
+            return f"om {entry['time']}  →  {action}"
+        return f"{entry.get('delay', 0):g}s  →  {action}"
 
     def _pick_pos(self):
         x, y = get_cursor_pos()
@@ -301,17 +364,15 @@ class App(tk.Tk):
         self._status(f"Positie: ({x}, {y})")
 
     def _add(self):
+        is_key = self.action_type.get() == "key"
         try:
-            x, y = int(self.x.get()), int(self.y.get())
-            is_double = self.double.get()
+            if is_key:
+                parse_key(self.key.get())
+            else:
+                int(self.x.get())
+                int(self.y.get())
             if self.mode.get() == "delay":
                 float(self.val.get().replace(",", "."))
-                entry = {
-                    "mode": "delay",
-                    "delay": float(self.val.get().replace(",", ".")),
-                    "x": x, "y": y,
-                    "double": is_double,
-                }
             else:
                 time_str = self.val.get().strip()
                 parts = time_str.split(":")
@@ -320,14 +381,13 @@ class App(tk.Tk):
                 h, m, s = map(int, parts)
                 if not (0 <= h <= 23 and 0 <= m <= 59 and 0 <= s <= 59):
                     raise ValueError
-                entry = {
-                    "mode": "clock",
-                    "time": f"{h:02d}:{m:02d}:{s:02d}",
-                    "x": x, "y": y,
-                    "double": is_double,
-                }
         except ValueError:
-            if self.mode.get() == "clock":
+            if is_key:
+                messagebox.showwarning(
+                    "Invoer",
+                    "Vul een geldige toets in, bijv. F6, Enter of A.",
+                )
+            elif self.mode.get() == "clock":
                 messagebox.showwarning(
                     "Invoer",
                     "Vul een geldig tijdstip in, bijv. 14:30:00 (uur:minuut:seconde).",
@@ -335,8 +395,46 @@ class App(tk.Tk):
             else:
                 messagebox.showwarning("Invoer", "Controleer seconden, X en Y.")
             return
+
+        if is_key:
+            key_name = keysym_to_name(self.key.get().strip())
+            if self.mode.get() == "delay":
+                entry = {
+                    "type": "key",
+                    "mode": "delay",
+                    "delay": float(self.val.get().replace(",", ".")),
+                    "key": key_name,
+                }
+            else:
+                time_str = self.val.get().strip()
+                h, m, s = map(int, time_str.split(":"))
+                entry = {
+                    "type": "key",
+                    "mode": "clock",
+                    "time": f"{h:02d}:{m:02d}:{s:02d}",
+                    "key": key_name,
+                }
+        elif self.mode.get() == "delay":
+            entry = {
+                "mode": "delay",
+                "delay": float(self.val.get().replace(",", ".")),
+                "x": int(self.x.get()),
+                "y": int(self.y.get()),
+                "double": self.double.get(),
+            }
+        else:
+            time_str = self.val.get().strip()
+            h, m, s = map(int, time_str.split(":"))
+            entry = {
+                "mode": "clock",
+                "time": f"{h:02d}:{m:02d}:{s:02d}",
+                "x": int(self.x.get()),
+                "y": int(self.y.get()),
+                "double": self.double.get(),
+            }
+
         self.clicks.append(entry)
-        self.listbox.insert(tk.END, self._click_label(entry))
+        self.listbox.insert(tk.END, self._action_label(entry))
         self._save()
 
     def _remove(self):
@@ -349,7 +447,7 @@ class App(tk.Tk):
 
     def _start(self):
         if not self.clicks:
-            messagebox.showinfo(APP_NAME, "Voeg eerst minimaal één klik toe.")
+            messagebox.showinfo(APP_NAME, "Voeg eerst minimaal één actie toe.")
             return
         try:
             pause = float(self.pause.get().replace(",", "."))
@@ -390,7 +488,7 @@ class App(tk.Tk):
         self.pause.set(str(data.get("pause", "5")))
         self.listbox.delete(0, tk.END)
         for c in self.clicks:
-            self.listbox.insert(tk.END, self._click_label(c))
+            self.listbox.insert(tk.END, self._action_label(c))
 
 
 if __name__ == "__main__":

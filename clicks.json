@@ -5,6 +5,12 @@
       "delay": 3,
       "x": 500,
       "y": 400
+    },
+    {
+      "type": "key",
+      "mode": "delay",
+      "delay": 2,
+      "key": "F6"
     }
   ],
   "repeat": false,
