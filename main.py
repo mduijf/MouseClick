@@ -1,5 +1,5 @@
 """
-MouseClick — simuleer muisklikken op instelbare tijden en posities (Windows).
+Yellowspot MouseClick — simuleer muisklikken op instelbare tijden en posities (Windows).
 """
 
 import json
@@ -13,10 +13,11 @@ from tkinter import messagebox, ttk
 if sys.platform != "win32":
     _err = tk.Tk()
     _err.withdraw()
-    messagebox.showerror("MouseClick", "Deze app werkt alleen op Windows.")
+    messagebox.showerror("Yellowspot MouseClick", "Deze app werkt alleen op Windows.")
     sys.exit(1)
 
 from mouse_click import click, get_cursor_pos
+from tray import APP_NAME, TrayIcon
 
 
 def config_path() -> Path:
@@ -57,7 +58,7 @@ class Scheduler:
                     self._wait(c)
                     if self._stop.is_set():
                         break
-                    self.set_status(f"Klik {i + 1}/{len(clicks)} → ({c['x']}, {c['y']})")
+                    self.set_status(f"Klik {i + 1}/{len(clicks)} op ({c['x']}, {c['y']})")
                     click(c["x"], c["y"])
                 if not repeat or self._stop.is_set():
                     break
@@ -98,28 +99,38 @@ class App(tk.Tk):
 
     def __init__(self):
         super().__init__()
-        self.title("MouseClick")
-        self.geometry("420x520")
+        self.title(APP_NAME)
+        self.geometry("420x540")
         self.configure(bg=self.BG)
         self.resizable(False, False)
 
         self.clicks: list[dict] = []
+        self._in_tray = False
+        self._tray: TrayIcon | None = None
         self.scheduler = Scheduler(self._status, self._done)
         self._build()
         self._load()
+
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
+        self.bind("<Unmap>", self._on_unmap)
+        self._tray = TrayIcon(self)
 
     def _build(self):
         pad = {"padx": 16, "pady": 4}
 
         header = tk.Label(
-            self, text="MouseClick", font=("Segoe UI", 18, "bold"),
+            self, text=APP_NAME, font=("Segoe UI", 16, "bold"),
             bg=self.BG, fg="#111",
         )
         header.pack(pady=(16, 2))
         tk.Label(
             self, text="Plan muisklikken op tijd en positie",
             font=("Segoe UI", 10), bg=self.BG, fg="#555",
-        ).pack(pady=(0, 12))
+        ).pack(pady=(0, 4))
+        tk.Label(
+            self, text="Minimaliseer om op de achtergrond te draaien (systeemvak)",
+            font=("Segoe UI", 9), bg=self.BG, fg="#888",
+        ).pack(pady=(0, 10))
 
         form = tk.Frame(self, bg="white", highlightbackground="#ddd", highlightthickness=1)
         form.pack(fill=tk.X, padx=16, pady=4)
@@ -131,14 +142,27 @@ class App(tk.Tk):
         mode_row = tk.Frame(inner, bg="white")
         mode_row.pack(fill=tk.X, pady=(0, 8))
         tk.Label(mode_row, text="Timing", bg="white", font=("Segoe UI", 9, "bold")).pack(anchor=tk.W)
-        ttk.Radiobutton(mode_row, text="Vertraging (sec)", variable=self.mode, value="delay").pack(anchor=tk.W)
-        ttk.Radiobutton(mode_row, text="Kloktijd (HH:MM:SS)", variable=self.mode, value="clock").pack(anchor=tk.W)
+        ttk.Radiobutton(
+            mode_row, text="Vertraging — wacht X seconden na vorige klik",
+            variable=self.mode, value="delay", command=self._update_value_field,
+        ).pack(anchor=tk.W)
+        ttk.Radiobutton(
+            mode_row, text="Kloktijd — klik op een vast tijdstip vandaag",
+            variable=self.mode, value="clock", command=self._update_value_field,
+        ).pack(anchor=tk.W)
 
         self.val = tk.StringVar(value="3")
         row1 = tk.Frame(inner, bg="white")
         row1.pack(fill=tk.X, pady=4)
-        tk.Label(row1, text="Waarde", bg="white", width=8, anchor=tk.W).pack(side=tk.LEFT)
-        ttk.Entry(row1, textvariable=self.val, width=28).pack(side=tk.LEFT)
+        self.val_label = tk.Label(row1, text="Seconden", bg="white", width=12, anchor=tk.W)
+        self.val_label.pack(side=tk.LEFT)
+        self.val_entry = ttk.Entry(row1, textvariable=self.val, width=28)
+        self.val_entry.pack(side=tk.LEFT)
+        self.val_hint = tk.Label(
+            inner, text="Aantal seconden wachten vóór deze klik.",
+            bg="white", fg="#666", font=("Segoe UI", 8), anchor=tk.W,
+        )
+        self.val_hint.pack(fill=tk.X, pady=(0, 4))
 
         self.x = tk.StringVar(value="500")
         self.y = tk.StringVar(value="400")
@@ -194,6 +218,58 @@ class App(tk.Tk):
             font=("Segoe UI", 9), wraplength=380,
         ).pack(pady=(0, 12))
 
+    def _on_unmap(self, event):
+        if event.widget is self and self.state() == "iconic" and not self._in_tray:
+            self.after(100, self._hide_to_tray)
+
+    def _hide_to_tray(self):
+        if self._in_tray or self.state() != "iconic":
+            return
+        self._in_tray = True
+        self.withdraw()
+        self._status("Draait op de achtergrond — open via het icoon naast de klok")
+
+    def show_window(self):
+        self._in_tray = False
+        self.deiconify()
+        self.lift()
+        self.focus_force()
+
+    def request_quit(self):
+        self._on_close()
+
+    def _on_close(self):
+        if self.scheduler.running:
+            ok = messagebox.askyesno(
+                APP_NAME,
+                "Er lopen nog geplande klikken.\n\nWeet je zeker dat je wilt afsluiten?",
+                icon="warning",
+            )
+            if not ok:
+                return
+        self._quit()
+
+    def _quit(self):
+        self.scheduler.stop()
+        if self._tray:
+            self._tray.stop()
+        self.destroy()
+
+    def _update_value_field(self) -> None:
+        if self.mode.get() == "clock":
+            self.val_label.configure(text="Tijdstip")
+            self.val_hint.configure(
+                text="Wanneer moet er geklikt worden? Formaat: uu:mm:ss (bijv. 14:30:00). "
+                     "Is dat tijdstip al voorbij, dan morgen op dat moment."
+            )
+            if self.val.get() in ("", "3"):
+                self.val.set(datetime.now().strftime("%H:%M:%S"))
+        else:
+            self.val_label.configure(text="Seconden")
+            self.val_hint.configure(text="Aantal seconden wachten vóór deze klik.")
+            if ":" in self.val.get():
+                self.val.set("3")
+
     def _pick_pos(self):
         x, y = get_cursor_pos()
         self.x.set(str(x))
@@ -208,13 +284,23 @@ class App(tk.Tk):
                 entry = {"mode": "delay", "delay": float(self.val.get().replace(",", ".")), "x": x, "y": y}
                 label = f"{entry['delay']:g}s  →  ({x}, {y})"
             else:
-                parts = self.val.get().strip().split(":")
+                time_str = self.val.get().strip()
+                parts = time_str.split(":")
                 if len(parts) != 3:
                     raise ValueError
-                entry = {"mode": "clock", "time": self.val.get().strip(), "x": x, "y": y}
-                label = f"{entry['time']}  →  ({x}, {y})"
+                h, m, s = map(int, parts)
+                if not (0 <= h <= 23 and 0 <= m <= 59 and 0 <= s <= 59):
+                    raise ValueError
+                entry = {"mode": "clock", "time": f"{h:02d}:{m:02d}:{s:02d}", "x": x, "y": y}
+                label = f"om {entry['time']}  →  ({x}, {y})"
         except ValueError:
-            messagebox.showwarning("Invoer", "Controleer waarde, X en Y.")
+            if self.mode.get() == "clock":
+                messagebox.showwarning(
+                    "Invoer",
+                    "Vul een geldig tijdstip in, bijv. 14:30:00 (uur:minuut:seconde).",
+                )
+            else:
+                messagebox.showwarning("Invoer", "Controleer seconden, X en Y.")
             return
         self.clicks.append(entry)
         self.listbox.insert(tk.END, label)
@@ -230,7 +316,7 @@ class App(tk.Tk):
 
     def _start(self):
         if not self.clicks:
-            messagebox.showinfo("MouseClick", "Voeg eerst minimaal één klik toe.")
+            messagebox.showinfo(APP_NAME, "Voeg eerst minimaal één klik toe.")
             return
         try:
             pause = float(self.pause.get().replace(",", "."))
@@ -240,6 +326,7 @@ class App(tk.Tk):
         self.btn_start.configure(state=tk.DISABLED)
         self.btn_stop.configure(state=tk.NORMAL)
         self.scheduler.start(self.clicks, self.repeat.get(), pause)
+        self._status("Gestart — je kunt minimaliseren naar het systeemvak")
 
     def _stop(self):
         self.scheduler.stop()
@@ -271,7 +358,7 @@ class App(tk.Tk):
         self.listbox.delete(0, tk.END)
         for c in self.clicks:
             if c.get("mode") == "clock":
-                self.listbox.insert(tk.END, f"{c['time']}  →  ({c['x']}, {c['y']})")
+                self.listbox.insert(tk.END, f"om {c['time']}  →  ({c['x']}, {c['y']})")
             else:
                 self.listbox.insert(tk.END, f"{c.get('delay', 0):g}s  →  ({c['x']}, {c['y']})")
 

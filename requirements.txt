@@ -1,3 +1,4 @@
-# Geen runtime-dependencies — gebruikt alleen Python-stdlib + tkinter (Windows).
-# Optioneel voor .exe-build:
-# pyinstaller>=6.0
+# Runtime + build
+pystray>=0.19
+Pillow>=10.0
+pyinstaller>=6.0

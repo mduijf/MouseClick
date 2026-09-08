@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0"
 
-echo === MouseClick build ===
+echo === Yellowspot MouseClick build ===
 echo.
 
 python --version >nul 2>&1
@@ -12,15 +12,15 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo Installeren PyInstaller...
-python -m pip install --upgrade pip pyinstaller -q
+echo Installeren dependencies...
+python -m pip install --upgrade pip pyinstaller pystray Pillow -q
 
-echo Bouwen MouseClick.exe...
+echo Bouwen YellowspotMouseClick.exe...
 python -m PyInstaller MouseClick.spec --noconfirm --clean
 
-if exist "dist\MouseClick.exe" (
+if exist "dist\YellowspotMouseClick.exe" (
     echo.
-    echo Klaar: dist\MouseClick.exe
+    echo Klaar: dist\YellowspotMouseClick.exe
     copy /Y clicks.json dist\clicks.json >nul 2>&1
     echo Voorbeeldconfig gekopieerd naar dist\clicks.json
 ) else (

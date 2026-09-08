@@ -1,5 +1,6 @@
 build/
 dist/*
+!dist/YellowspotMouseClick.exe
 !dist/MouseClick.exe
 !dist/clicks.json
 *.spec.bak

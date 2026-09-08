@@ -15,8 +15,8 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install PyInstaller
-        run: pip install pyinstaller
+      - name: Install dependencies
+        run: pip install pyinstaller pystray Pillow
 
       - name: Build exe
         run: pyinstaller MouseClick.spec --noconfirm
@@ -24,7 +24,7 @@ jobs:
       - name: Upload exe
         uses: actions/upload-artifact@v4
         with:
-          name: MouseClick-windows
+          name: YellowspotMouseClick-windows
           path: |
-            dist/MouseClick.exe
+            dist/YellowspotMouseClick.exe
             clicks.json
