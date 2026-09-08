@@ -100,9 +100,9 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title(APP_NAME)
-        self.geometry("420x540")
+        self.geometry("440x680")
+        self.minsize(400, 580)
         self.configure(bg=self.BG)
-        self.resizable(False, False)
 
         self.clicks: list[dict] = []
         self._in_tray = False
@@ -113,26 +113,62 @@ class App(tk.Tk):
 
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self.bind("<Unmap>", self._on_unmap)
+        self.bind("<Configure>", self._on_resize)
         self._tray = TrayIcon(self)
 
     def _build(self):
-        pad = {"padx": 16, "pady": 4}
+        # Onderkant eerst — blijft altijd zichtbaar bij verkleinen
+        footer = tk.Frame(self, bg=self.BG, padx=16, pady=(8, 12))
+        footer.pack(side=tk.BOTTOM, fill=tk.X)
+
+        self.status = tk.StringVar(value="Gereed — voeg klikken toe en druk op Start")
+        self.status_label = tk.Label(
+            footer, textvariable=self.status, bg=self.BG, fg="#555",
+            font=("Segoe UI", 9), wraplength=400, justify=tk.LEFT, anchor=tk.W,
+        )
+        self.status_label.pack(fill=tk.X, pady=(0, 8))
+
+        ctrl = tk.Frame(footer, bg=self.BG)
+        ctrl.pack(fill=tk.X, pady=(0, 8))
+        self.btn_start = tk.Button(
+            ctrl, text="▶  START", font=("Segoe UI", 11, "bold"),
+            bg=self.ACCENT, fg="white", relief=tk.FLAT, padx=20, pady=8,
+            cursor="hand2", command=self._start,
+        )
+        self.btn_start.pack(side=tk.LEFT, padx=(0, 8))
+        self.btn_stop = tk.Button(
+            ctrl, text="■  STOP", font=("Segoe UI", 11, "bold"),
+            bg="#dc2626", fg="white", relief=tk.FLAT, padx=20, pady=8,
+            cursor="hand2", command=self._stop, state=tk.DISABLED,
+        )
+        self.btn_stop.pack(side=tk.LEFT)
+
+        opts = tk.Frame(footer, bg=self.BG)
+        opts.pack(fill=tk.X)
+        self.repeat = tk.BooleanVar()
+        ttk.Checkbutton(opts, text="Herhalen", variable=self.repeat).pack(side=tk.LEFT)
+        tk.Label(opts, text="Pauze (sec)", bg=self.BG).pack(side=tk.LEFT, padx=(12, 4))
+        self.pause = tk.StringVar(value="5")
+        ttk.Entry(opts, textvariable=self.pause, width=5).pack(side=tk.LEFT)
+
+        content = tk.Frame(self, bg=self.BG)
+        content.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
         header = tk.Label(
-            self, text=APP_NAME, font=("Segoe UI", 16, "bold"),
+            content, text=APP_NAME, font=("Segoe UI", 16, "bold"),
             bg=self.BG, fg="#111",
         )
         header.pack(pady=(16, 2))
         tk.Label(
-            self, text="Plan muisklikken op tijd en positie",
+            content, text="Plan muisklikken op tijd en positie",
             font=("Segoe UI", 10), bg=self.BG, fg="#555",
         ).pack(pady=(0, 4))
         tk.Label(
-            self, text="Minimaliseer om op de achtergrond te draaien (systeemvak)",
+            content, text="Minimaliseer om op de achtergrond te draaien (systeemvak)",
             font=("Segoe UI", 9), bg=self.BG, fg="#888",
         ).pack(pady=(0, 10))
 
-        form = tk.Frame(self, bg="white", highlightbackground="#ddd", highlightthickness=1)
+        form = tk.Frame(content, bg="white", highlightbackground="#ddd", highlightthickness=1)
         form.pack(fill=tk.X, padx=16, pady=4)
 
         inner = tk.Frame(form, bg="white", padx=12, pady=12)
@@ -157,7 +193,7 @@ class App(tk.Tk):
         self.val_label = tk.Label(row1, text="Seconden", bg="white", width=12, anchor=tk.W)
         self.val_label.pack(side=tk.LEFT)
         self.val_entry = ttk.Entry(row1, textvariable=self.val, width=28)
-        self.val_entry.pack(side=tk.LEFT)
+        self.val_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
         self.val_hint = tk.Label(
             inner, text="Aantal seconden wachten vóór deze klik.",
             bg="white", fg="#666", font=("Segoe UI", 8), anchor=tk.W,
@@ -178,45 +214,19 @@ class App(tk.Tk):
         ttk.Button(btns, text="Huidige positie", command=self._pick_pos).pack(side=tk.LEFT, padx=(0, 6))
         ttk.Button(btns, text="+ Toevoegen", command=self._add).pack(side=tk.LEFT)
 
-        list_frame = tk.Frame(self, bg=self.BG)
-        list_frame.pack(fill=tk.BOTH, expand=True, **pad)
+        list_frame = tk.Frame(content, bg=self.BG, padx=16, pady=8)
+        list_frame.pack(fill=tk.BOTH, expand=True)
         tk.Label(list_frame, text="Geplande klikken", bg=self.BG, font=("Segoe UI", 9, "bold")).pack(anchor=tk.W)
         self.listbox = tk.Listbox(
-            list_frame, height=8, font=("Consolas", 10),
+            list_frame, height=6, font=("Consolas", 10),
             selectmode=tk.SINGLE, activestyle="none",
         )
         self.listbox.pack(fill=tk.BOTH, expand=True, pady=4)
         ttk.Button(list_frame, text="Verwijder geselecteerd", command=self._remove).pack(anchor=tk.W)
 
-        opts = tk.Frame(self, bg=self.BG)
-        opts.pack(fill=tk.X, padx=16)
-        self.repeat = tk.BooleanVar()
-        ttk.Checkbutton(opts, text="Herhalen", variable=self.repeat).pack(side=tk.LEFT)
-        tk.Label(opts, text="Pauze (sec)", bg=self.BG).pack(side=tk.LEFT, padx=(12, 4))
-        self.pause = tk.StringVar(value="5")
-        ttk.Entry(opts, textvariable=self.pause, width=5).pack(side=tk.LEFT)
-
-        ctrl = tk.Frame(self, bg=self.BG)
-        ctrl.pack(fill=tk.X, padx=16, pady=12)
-
-        self.btn_start = tk.Button(
-            ctrl, text="▶  START", font=("Segoe UI", 11, "bold"),
-            bg=self.ACCENT, fg="white", relief=tk.FLAT, padx=20, pady=8,
-            cursor="hand2", command=self._start,
-        )
-        self.btn_start.pack(side=tk.LEFT, padx=(0, 8))
-        self.btn_stop = tk.Button(
-            ctrl, text="■  STOP", font=("Segoe UI", 11, "bold"),
-            bg="#dc2626", fg="white", relief=tk.FLAT, padx=20, pady=8,
-            cursor="hand2", command=self._stop, state=tk.DISABLED,
-        )
-        self.btn_stop.pack(side=tk.LEFT)
-
-        self.status = tk.StringVar(value="Gereed — voeg klikken toe en druk op Start")
-        tk.Label(
-            self, textvariable=self.status, bg=self.BG, fg="#555",
-            font=("Segoe UI", 9), wraplength=380,
-        ).pack(pady=(0, 12))
+    def _on_resize(self, event):
+        if event.widget is self:
+            self.status_label.configure(wraplength=max(200, self.winfo_width() - 40))
 
     def _on_unmap(self, event):
         if event.widget is self and self.state() == "iconic" and not self._in_tray:
